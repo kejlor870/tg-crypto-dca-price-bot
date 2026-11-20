@@ -1,0 +1,31 @@
+# Pamięć podręczna i skompilowane pliki Pythona
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Środowiska wirtualne
+venv/
+.venv/
+env/
+.env/
+
+# Zmienne środowiskowe i sekrety
+.env
+.env.*
+!.env.example
+
+# Dystrybucja i budowanie paczek
+build/
+dist/
+*.egg-info/
+
+# Testy i narzędzia
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# Katalogi edytorów (opcjonalnie)
+.vscode/
+.idea/

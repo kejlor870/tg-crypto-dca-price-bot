@@ -181,6 +181,21 @@ def action_portfolio(chat_id):
     send_message(chat_id, "\n".join(lines))
 
 
+def action_history_all(chat_id):
+    transactions = load_transactions()
+    if not transactions:
+        send_message(chat_id, "Brak zapisanych transakcji.")
+        return
+
+    lines = ["📋 *Cała historia operacji (ostatnie 30):*\n"]
+    for tx in transactions[-30:]:
+        icon = "🟢" if tx["type"] == "BUY" else "🔴"
+        lines.append(
+            f"{icon} `{tx['date']}` | *{tx['symbol']}* {tx['type']} `{tx['amount']:g}` po `{tx['price']:,.4f} USDC`"
+        )
+    send_message(chat_id, "\n".join(lines))
+
+
 def action_history_menu(chat_id):
     transactions = load_transactions()
     if not transactions:
@@ -189,17 +204,17 @@ def action_history_menu(chat_id):
 
     symbols = sorted({tx["symbol"] for tx in transactions})
     buttons = [
-        [{"text": f"📜 Historia {sym}", "callback_data": f"hist_{sym}"}]
-        for sym in symbols
+        [{"text": "📋 Cała historia (wszystkie)", "callback_data": "hist_ALL"}]
     ]
+    for sym in symbols:
+        buttons.append([{"text": f"📜 Historia {sym}", "callback_data": f"hist_{sym}"}])
     buttons.append([{"text": "🔙 Wróć do menu", "callback_data": "cmd_help"}])
 
     send_message(
         chat_id,
-        "Wybierz kryptowalutę, której historię chcesz zobaczyć:",
+        "Wybierz zakres historii:",
         reply_markup={"inline_keyboard": buttons},
     )
-
 
 def action_history_symbol(chat_id, symbol):
     symbol = symbol.upper()
@@ -283,6 +298,12 @@ def handle_callback(callback_query):
         )
     elif data == "cmd_help":
         action_help(chat_id)
+    elif data == "hist_ALL":
+        action_history_all(chat_id)
+    elif data.startswith("hist_"):
+        symbol = data.replace("hist_", "")
+        action_history_symbol(chat_id, symbol)
+
 
 
 def handle_message(message):
@@ -302,66 +323,137 @@ def handle_message(message):
     if command in ("/start", "/help"):
         action_help(chat_id)
 
+
     elif command == "/buy":
+
+        buy_example = (
+
+            "❌ *Nieprawidłowy format komendy /buy*\n\n"
+
+            "Schemat: `/buy <SYMBOL> <ILOŚĆ> <CENA_ZA_1_SZT_W_USDC>`\n"
+
+            "Przykład: `/buy BTC 0.05 92000`\n"
+
+            "_(czyli: kupiłeś 0.05 BTC po cenie 92 000 USDC za 1 BTC)_"
+
+        )
+
         if len(parts) != 4:
-            send_message(chat_id, "Błędny format. Użyj:\n`/buy BTC 0.05 92000`")
+            send_message(chat_id, buy_example)
+
             return
+
         try:
+
             symbol = parts[1].upper()
+
             amount = parse_number(parts[2])
+
             price = parse_number(parts[3])
-            if amount <= 0 or price < 0:
+
+            if amount <= 0 or price < 0 or symbol.replace(".", "").isdigit():
                 raise ValueError
+
         except ValueError:
-            send_message(chat_id, "Ilość musi być większa od zera, a cena nieujemna.")
+
+            send_message(chat_id, buy_example)
+
             return
 
         save_transaction("BUY", symbol, amount, price)
+
         portfolio = calculate_portfolio(load_transactions())
+
         stats = portfolio[symbol]
+
         total_spent = amount * price
 
         reply = (
+
             f"✅ *Zapisano zakup {symbol}*\n"
+
             f"• Kupiono: `{amount:g} {symbol}` po `{price:,.4f} USDC`\n"
+
             f"• Wartość zlecenia: `{total_spent:,.2f} USDC`\n\n"
+
             f"📊 *Aktualny stan {symbol}:*\n"
+
             f"• Łączna ilość: `{stats['amount']:g} {symbol}`\n"
+
             f"• Średnia cena kupna: `{stats['avg_price']:,.4f} USDC`\n"
+
             f"• Zainwestowany kapitał: `{stats['cost_basis']:,.2f} USDC`"
+
         )
+
         send_message(chat_id, reply)
 
+
     elif command == "/sell":
+
+        sell_example = (
+
+            "❌ *Nieprawidłowy format komendy /sell*\n\n"
+
+            "Schemat: `/sell <SYMBOL> <ILOŚĆ> <CENA_ZA_1_SZT_W_USDC>`\n"
+
+            "Przykład: `/sell BTC 0.02 98000`\n"
+
+            "_(czyli: sprzedałeś 0.02 BTC po cenie 98 000 USDC za 1 BTC)_"
+
+        )
+
         if len(parts) != 4:
-            send_message(chat_id, "Błędny format. Użyj:\n`/sell BTC 0.02 98000`")
+            send_message(chat_id, sell_example)
+
             return
+
         try:
+
             symbol = parts[1].upper()
+
             amount = parse_number(parts[2])
+
             price = parse_number(parts[3])
-            if amount <= 0 or price < 0:
+
+            if amount <= 0 or price < 0 or symbol.replace(".", "").isdigit():
                 raise ValueError
+
         except ValueError:
-            send_message(chat_id, "Ilość musi być większa od zera, a cena nieujemna.")
+
+            send_message(chat_id, sell_example)
+
             return
 
         transactions = load_transactions()
+
         portfolio = calculate_portfolio(transactions)
+
         owned = portfolio.get(symbol, {}).get("amount", 0.0)
+
         if amount > owned + 1e-12:
-            send_message(chat_id, f"Nie masz tyle `{symbol}` w portfelu (posiadasz: `{owned:g}`).")
+            send_message(chat_id, f"Nie masz tyle {symbol} w portfelu (posiadasz: `{owned:g}`).")
+
             return
 
         save_transaction("SELL", symbol, amount, price)
+
         updated = calculate_portfolio(load_transactions())[symbol]
+
         reply = (
+
             f"🔻 *Zapisano sprzedaż {symbol}*\n"
+
             f"• Sprzedano: `{amount:g} {symbol}` po `{price:,.4f} USDC`\n"
+
             f"• Pozostało w portfelu: `{updated['amount']:g} {symbol}`\n"
+
             f"• Średnia cena zakupu pozostałych: `{updated['avg_price']:,.4f} USDC`"
+
         )
+
         send_message(chat_id, reply)
+
 
     elif command in ("/portfolio", "/list"):
         action_portfolio(chat_id)

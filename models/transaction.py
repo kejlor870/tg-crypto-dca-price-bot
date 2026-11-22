@@ -1,10 +1,10 @@
 from uuid import UUID, uuid4
 from datetime import datetime, timezone
 from decimal import Decimal
-from enum import StrEnum
+from enum import Enum
 
 
-class TransactionType(StrEnum):
+class TransactionType(str, Enum):
     BUY = "BUY"
     SELL = "SELL"
 
@@ -20,7 +20,7 @@ class Transaction:
         if not isinstance(transaction_type, TransactionType):
             raise ValueError("Incorrect transaction type. Use TransactionType.BUY or SELL.")
 
-        if not symbol or symbol.strip():
+        if not symbol or not symbol.strip():
             raise ValueError("Symbol can not be empty.")
 
         if not isinstance(quantity, Decimal) or quantity <= Decimal("0"):

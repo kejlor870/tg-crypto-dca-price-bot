@@ -1,4 +1,4 @@
-import uuid
+from uuid import UUID, uuid4
 from datetime import datetime, timezone
 from decimal import Decimal
 from enum import StrEnum
@@ -29,7 +29,7 @@ class Transaction:
         if not isinstance(price, Decimal) or price <= Decimal("0"):
             raise ValueError("Price must be greater than zero.")
 
-        self._id = uuid.uuid4()
+        self._id = uuid4()
         self._created_at = datetime.now(timezone.utc)
         self._transaction_type = transaction_type
         self._symbol = symbol.strip().upper()
@@ -37,7 +37,7 @@ class Transaction:
         self._price = price
 
     @property
-    def id(self) -> uuid:
+    def id(self) -> UUID:
         return self._id
 
     @property

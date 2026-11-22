@@ -94,3 +94,21 @@ class TestTransaction(unittest.TestCase):
                 quantity=Decimal("0.015"),
                 price=Decimal("32000.0")
             )
+
+    def test_quantity_as_float_raises_error(self):
+        with self.assertRaises(ValueError):
+            Transaction(
+                transaction_type=TransactionType.BUY,
+                symbol="BTC",
+                quantity=1.5,  # type: ignore
+                price=Decimal("50000")
+            )
+
+    def test_price_as_float_raises_error(self):
+        with self.assertRaises(ValueError):
+            Transaction(
+                transaction_type=TransactionType.BUY,
+                symbol="BTC",
+                quantity=Decimal("1.5"),
+                price=50000.50  # type: ignore
+            )

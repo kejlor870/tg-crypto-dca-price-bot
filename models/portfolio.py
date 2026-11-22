@@ -27,3 +27,15 @@ class Portfolio:
             return Decimal("0")
 
         return self._total_cost / self._quantity
+
+    @property
+    def symbol(self):
+        return self._symbol
+
+    @property
+    def quantity(self):
+        return self._quantity
+
+    @property
+    def total_cost(self):
+        return self._total_cost

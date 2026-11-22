@@ -37,29 +37,29 @@ class Transaction:
         self._price = price
 
     @property
-    def id(self):
+    def id(self) -> uuid:
         return self._id
 
     @property
-    def created_at(self):
+    def created_at(self) -> datetime:
         return self._created_at
 
     @property
-    def transaction_type(self):
+    def transaction_type(self) -> TransactionType:
         return self._transaction_type
 
     @property
-    def symbol(self):
+    def symbol(self) -> str:
         return self._symbol
 
     @property
-    def quantity(self):
+    def quantity(self) -> Decimal:
         return self._quantity
 
     @property
-    def price(self):
+    def price(self) -> Decimal:
         return self._price
 
     @property
-    def value(self):
+    def value(self) -> Decimal:
         return self._quantity * self._price

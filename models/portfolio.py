@@ -12,7 +12,7 @@ class Portfolio:
             raise ValueError("Symbol can not be empty.")
 
         if not isinstance(quantity, Decimal) or quantity < Decimal("0"):
-            raise ValueError("Quantity must be greater than zero.")
+            raise ValueError("Quantity must be greater or equal zero.")
 
         if not isinstance(total_cost, Decimal) or total_cost < Decimal("0"):
             raise ValueError("Total cost must be greater or equal zero.")

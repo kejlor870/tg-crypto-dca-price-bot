@@ -66,3 +66,40 @@ class TestTransactionService(unittest.TestCase):
                     service.add_buy("BTC", bad_quantity, bad_price)
 
                 self.assertEqual(0, len(repo.get_all()))
+
+
+    # --------- SELL ---------
+
+    def test_add_sell_partial_quantity_updates_portfolio_and_repository(self) -> None:
+        self.service.add_buy("BTC", Decimal("1.5"), Decimal("60000"))
+
+        sell_tx = self.service.add_sell("btc", Decimal("0.5"), Decimal("65000"))
+
+        self.assertIsInstance(sell_tx, Transaction)
+        self.assertEqual(TransactionType.SELL, sell_tx.transaction_type)
+        self.assertEqual("BTC", sell_tx.symbol)
+        self.assertEqual(Decimal("0.5"), sell_tx.quantity)
+        self.assertEqual(Decimal("65000"), sell_tx.price)
+
+        portfolio = self.service._portfolios["BTC"]
+        self.assertEqual(Decimal("1.0"), portfolio.quantity)
+
+        self.assertEqual(2, len(self.tx_repository.get_all()))
+        self.assertEqual(sell_tx, self.tx_repository.get_by_id(sell_tx.id))
+
+    def test_add_sell_more_than_owned_raises_value_error_and_does_not_save(self) -> None:
+        self.service.add_buy("ETH", Decimal("2.0"), Decimal("3000"))
+
+        with self.assertRaises(ValueError):
+            self.service.add_sell("ETH", Decimal("3.0"), Decimal("3200"))
+
+        portfolio = self.service._portfolios["ETH"]
+        self.assertEqual(Decimal("2.0"), portfolio.quantity)
+        self.assertEqual(1, len(self.tx_repository.get_all()))
+
+    def test_add_sell_for_nonexistent_portfolio_raises_value_error(self) -> None:
+        with self.assertRaises(ValueError):
+            self.service.add_sell("SOL", Decimal("1.0"), Decimal("150"))
+
+        self.assertNotIn("SOL", self.service._portfolios)
+        self.assertEqual(0, len(self.tx_repository.get_all()))

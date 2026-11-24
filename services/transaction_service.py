@@ -32,3 +32,22 @@ class TransactionService:
         self._repository.save(new_transaction)
 
         return new_transaction
+
+    def add_sell(self, symbol: str, quantity: Decimal, price: Decimal) -> Transaction:
+        if not symbol or not symbol.strip():
+            raise ValueError("Symbol can not be empty.")
+
+        normalized_symbol = symbol.strip().upper()
+
+        if normalized_symbol not in self._portfolios:
+            raise ValueError("Not found portfolio for provided symbol.")
+
+        new_transaction = Transaction(TransactionType.SELL, normalized_symbol, quantity, price)
+        current_portfolio = self._portfolios[normalized_symbol]
+
+        # Update portfolio for coin - quantity and total_cost
+        current_portfolio.sell(quantity, price)
+        # Add new sell transaction to transaction repository
+        self._repository.save(new_transaction)
+
+        return new_transaction

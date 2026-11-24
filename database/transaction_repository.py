@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sqlite3
 from uuid import UUID
 
 from models.transaction import Transaction
@@ -7,7 +8,7 @@ from models.transaction import Transaction
 
 class TransactionRepository:
 
-    def __init__(self) -> None:
+    def __init__(self, connection: sqlite3.Connection) -> None:
         self._transactions: dict[UUID, Transaction] = {}
 
     # Method to save new transaction in dictionary (key - transaction.id : value - transaction)

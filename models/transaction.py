@@ -63,3 +63,11 @@ class Transaction:
     @property
     def value(self) -> Decimal:
         return self._quantity * self._price
+
+    @classmethod
+    def from_db(cls, transaction_id: UUID, created_at: datetime, transaction_type: TransactionType, symbol: str, quantity: Decimal, price: Decimal) -> "Transaction":
+        tx = cls(transaction_type, symbol, quantity, price)
+        tx._id = transaction_id
+        tx._created_at = created_at
+
+        return tx

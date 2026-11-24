@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from decimal import Decimal
 
 from database.transaction_repository import TransactionRepository
@@ -51,3 +53,17 @@ class TransactionService:
         self._repository.save(new_transaction)
 
         return new_transaction
+
+    def get_portfolio(self, symbol: str) -> Portfolio | None:
+        if not symbol or not symbol.strip():
+            raise ValueError("Symbol can not be empty.")
+
+        normalized_symbol = symbol.strip().upper()
+
+        return self._portfolios.get(normalized_symbol)
+
+    def get_all_portfolios(self) -> list[Portfolio]:
+        return list(self._portfolios.values())
+
+    def get_all_transactions(self) -> list[Transaction]:
+        return self._repository.get_all()

@@ -2,6 +2,7 @@ import unittest
 from decimal import Decimal
 
 from database.transaction_repository import TransactionRepository
+from models.portfolio import Portfolio
 from models.transaction import Transaction, TransactionType
 from services.transaction_service import TransactionService
 
@@ -103,3 +104,54 @@ class TestTransactionService(unittest.TestCase):
 
         self.assertNotIn("SOL", self.service._portfolios)
         self.assertEqual(0, len(self.tx_repository.get_all()))
+
+
+    # ---------- Methods ----------
+
+    def test_get_portfolio_returns_correct_portfolio(self) -> None:
+        tx = self.service.add_buy("BTC", Decimal("0.5"), Decimal("61000"))
+        tx = self.service.add_buy("BTC", Decimal("0.2"), Decimal("70000"))
+
+        portfolio_btc = self.service.get_portfolio("BTC")
+
+        self.assertIsInstance(portfolio_btc, Portfolio)
+        self.assertIs(self.service.get_portfolio("BTC"), portfolio_btc)
+
+    def test_get_portfolio_lowercase_symbol_works(self) -> None:
+        tx = self.service.add_buy("BTC", Decimal("0.5"), Decimal("61000"))
+
+        portfolio_btc = self.service.get_portfolio("btc")
+
+        self.assertIsInstance(portfolio_btc, Portfolio)
+        self.assertIs(self.service.get_portfolio("BTC"), portfolio_btc)
+
+    def test_get_portfolio_nonexistent_symbol_returns_none(self) -> None:
+        portfolio = self.service.get_portfolio("nonExists")
+
+        self.assertIsNone(portfolio)
+
+    def test_get_portfolio_empty_symbol_raises_value_error(self) -> None:
+        for empty_symbol in ["", "  "]:
+            with self.subTest(symbol=empty_symbol):
+                with self.assertRaises(ValueError):
+                    self.service.get_portfolio(empty_symbol)
+
+    def test_get_all_portfolios_returns_all_created_portfolios(self) -> None:
+        self.service.add_buy("BTC", Decimal("0.5"), Decimal("60000"))
+        self.service.add_buy("ETH", Decimal("2.0"), Decimal("3000"))
+
+        portfolios = self.service.get_all_portfolios()
+
+        self.assertEqual(2, len(portfolios))
+        self.assertIn(self.service._portfolios["BTC"], portfolios)
+        self.assertIn(self.service._portfolios["ETH"], portfolios)
+
+    def test_get_all_transactions_returns_saved_transactions(self) -> None:
+        tx1 = self.service.add_buy("BTC", Decimal("0.5"), Decimal("60000"))
+        tx2 = self.service.add_buy("ETH", Decimal("2.0"), Decimal("3000"))
+
+        transactions = self.service.get_all_transactions()
+
+        self.assertEqual(2, len(transactions))
+        self.assertIn(tx1, transactions)
+        self.assertIn(tx2, transactions)

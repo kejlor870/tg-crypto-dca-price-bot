@@ -18,21 +18,26 @@ class TransactionRepository:
         if not isinstance(transaction, Transaction):
             raise TypeError("Provided transaction must be instance of Transaction class.")
 
-        self._connection.execute(
-            """
-            INSERT INTO transactions (id, transaction_type, symbol, quantity, price, created_at)
-            VALUES (?, ?, ?, ?, ?, ?)
-            """,
-            (
-                str(transaction.id),
-                transaction.transaction_type.value,
-                transaction.symbol,
-                str(transaction.quantity),
-                str(transaction.price),
-                transaction.created_at.isoformat()
+        try:
+            self._connection.execute(
+                """
+                INSERT INTO transactions (id, transaction_type, symbol, quantity, price, created_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    str(transaction.id),
+                    transaction.transaction_type.value,
+                    transaction.symbol,
+                    str(transaction.quantity),
+                    str(transaction.price),
+                    transaction.created_at.isoformat()
+                )
             )
-        )
-        self._connection.commit()
+            self._connection.commit()
+
+        except sqlite3.Error:
+            self._connection.rollback()
+            raise
 
     # Method returns list of transactions (Transaction class) without keys
     def get_all(self) -> list[Transaction]:

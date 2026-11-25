@@ -3,7 +3,7 @@ from dotenv import load_dotenv
 from telegram.ext import Application, CallbackQueryHandler, CommandHandler
 
 from app.config import load_config
-from app.handlers import button_handler, start
+from app.handlers import button_handler, start, buy_command, sell_command
 from database.database import Database
 from database.transaction_repository import TransactionRepository
 from services.transaction_service import TransactionService
@@ -41,13 +41,14 @@ def main() -> None:
         application.bot_data["transaction_service"] = service
 
         application.add_handler(CommandHandler("start", start))
+        application.add_handler(CommandHandler("buy", buy_command))
+        application.add_handler(CommandHandler("sell", sell_command))
         application.add_handler(CallbackQueryHandler(button_handler))
 
         print("Bot is starting...")
-        application.run_polling()
-
         print("Application initialized successfully.")
         print(f"Loaded portfolios: {len(service.get_all_portfolios())}")
+        application.run_polling()
 
     finally:
         # Close db after bot stop

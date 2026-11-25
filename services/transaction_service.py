@@ -45,7 +45,7 @@ class TransactionService:
 
         current_portfolio = self._portfolios.get(normalized_symbol)
 
-        if current_portfolio not in self._portfolios:
+        if normalized_symbol not in self._portfolios:
             raise ValueError("Not found portfolio for provided symbol.")
 
         new_transaction = Transaction(TransactionType.SELL, normalized_symbol, quantity, price)

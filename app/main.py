@@ -1,9 +1,10 @@
 import os
 from dotenv import load_dotenv
-from telegram.ext import Application, CallbackQueryHandler, CommandHandler
+from telegram import BotCommand
+from telegram.ext import Application, CallbackQueryHandler, CommandHandler, MessageHandler, filters
 
 from app.config import load_config
-from app.handlers import button_handler, start, buy_command, sell_command
+from app.handlers import button_handler, start, buy_command, sell_command, handle_inline_command
 from database.database import Database
 from database.transaction_repository import TransactionRepository
 from services.transaction_service import TransactionService
@@ -43,6 +44,7 @@ def main() -> None:
         application.add_handler(CommandHandler("start", start))
         application.add_handler(CommandHandler("buy", buy_command))
         application.add_handler(CommandHandler("sell", sell_command))
+        application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_inline_command))
         application.add_handler(CallbackQueryHandler(button_handler))
 
         print("Bot is starting...")

@@ -1,6 +1,6 @@
 from decimal import InvalidOperation, Decimal
 
-from telegram import Update
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 
 from app.keyboards import main_menu_keyboard
@@ -17,7 +17,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         await update.message.reply_text("Access denied.")
         return
 
-    await update.message.reply_text("Hi! Bot is working.", reply_markup=main_menu_keyboard())
+    await update.message.reply_text("<b>Hi!</b> Bot is working.", parse_mode="HTML", reply_markup=main_menu_keyboard())
 
 
 # --------------------- MENU BUTTONS HANDLERS ---------------------
@@ -34,6 +34,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         return
 
     await query.answer()
+    reply_markup = main_menu_keyboard()
 
     # ---- PORTFOLIO BUTTON ----
     if query.data == "portfolio":
@@ -90,16 +91,30 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             if len(transactions) > 10:
                 message += "\n\nShowing the 10 most recent transactions."
 
+    # ---- BUY & SELL BUTTON ----
+    elif query.data in ("buy", "sell"):
+        cmd = query.data    # buy or sell
+        message = f"Use: /{query.data} SYMBOL QUANTITY PRICE"
+
+        # Add new single button to fill command
+        reply_markup = InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton(
+                    text=f"✍️ Fill /{cmd}",
+                    switch_inline_query_current_chat=f"/{cmd} "
+                )
+            ]
+        ])
+
     else:
         messages = {
-            "buy": "Use: /buy SYMBOL QUANTITY PRICE",
-            "sell": "Use: /sell SYMBOL QUANTITY PRICE",
+            "who": "Bot created by me.",
         }
 
         message = messages.get(query.data, "Unknown option.")
 
     if query.message:
-        await query.message.reply_text(message, reply_markup=main_menu_keyboard())
+        await query.message.reply_text(message, parse_mode="HTML", reply_markup=reply_markup)
 
 
 # --------------------- MENU BUTTONS HANDLERS ---------------------
@@ -124,7 +139,9 @@ async def _handle_transaction_command(update: Update, context: ContextTypes.DEFA
     if len(context.args) != 3:
         await update.message.reply_text(
             f"Usage: /{operation.lower()} SYMBOL QUANTITY PRICE\n"
-            f"Example: /{operation.lower()} BTC 0.025 90000"
+            f"Example: /{operation.lower()} BTC 0.025 90000",
+            parse_mode="HTML",
+            reply_markup=main_menu_keyboard()
         )
         return
 
@@ -135,7 +152,11 @@ async def _handle_transaction_command(update: Update, context: ContextTypes.DEFA
         price = Decimal(price_text)
 
     except InvalidOperation:
-        await update.message.reply_text("Quantity and price must be valid numbers.")
+        await update.message.reply_text(
+            "Quantity and price must be valid numbers.",
+            parse_mode="HTML",
+            reply_markup=main_menu_keyboard()
+        )
         return
 
     if (
@@ -144,7 +165,11 @@ async def _handle_transaction_command(update: Update, context: ContextTypes.DEFA
             or quantity <= 0
             or price <= 0
     ):
-        await update.message.reply_text("Quantity and price must be finite numbers greater than zero.")
+        await update.message.reply_text(
+            "Quantity and price must be finite numbers greater than zero.",
+            parse_mode="HTML",
+            reply_markup=main_menu_keyboard()
+        )
         return
 
     service = context.application.bot_data["transaction_service"]
@@ -166,5 +191,31 @@ async def _handle_transaction_command(update: Update, context: ContextTypes.DEFA
         f"Symbol: {transaction.symbol}\n"
         f"Quantity: {transaction.quantity}\n"
         f"Price: {transaction.price} USDC\n"
-        f"Total: {transaction.value} USDC"
+        f"Total: {transaction.value} USDC",
+        parse_mode="HTML",
+        reply_markup=main_menu_keyboard()
     )
+
+# Handle messages with @bot_name before /buy and /sell
+async def handle_inline_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if update.effective_user is None or update.message is None:
+        return
+
+    text = update.message.text.strip()
+    bot_username = f"@{context.bot.username}"
+
+    # Checking if message starts with @bot_name
+    if text.lower().startswith(bot_username.lower()):
+        clean_text = text[len(bot_username):].strip()   # leaves only "/buy ..."
+        parts = clean_text.split()
+
+        if not parts:
+            return
+
+        command = parts[0].lower()
+        context.args = parts[1:]
+
+        if command == "/buy":
+            await _handle_transaction_command(update, context, "BUY")
+        elif command == "/sell":
+            await _handle_transaction_command(update, context, "SELL")

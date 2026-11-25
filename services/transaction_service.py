@@ -21,17 +21,19 @@ class TransactionService:
 
         new_transaction = Transaction(TransactionType.BUY, normalized_symbol, quantity, price)
 
+        current_portfolio = self._portfolios.get(normalized_symbol)
+
         # If portfolio for given symbol doesn't exist create new empty Portfolio and
         #   add it to dictionary
-        if normalized_symbol not in self._portfolios:
-            self._portfolios[normalized_symbol] = Portfolio(normalized_symbol, Decimal("0"), Decimal("0"))
+        if current_portfolio is None:
+            current_portfolio = Portfolio(normalized_symbol, Decimal("0"), Decimal("0"))
 
-        current_portfolio = self._portfolios[normalized_symbol]
-
-        # Change portfolio for provided coin
-        current_portfolio.buy(quantity, price)
         # Add buy Transaction to transaction repository
         self._repository.save(new_transaction)
+        # Change portfolio for provided coin
+        current_portfolio.buy(quantity, price)
+
+        self._portfolios[normalized_symbol] = current_portfolio
 
         return new_transaction
 
@@ -41,16 +43,20 @@ class TransactionService:
 
         normalized_symbol = symbol.strip().upper()
 
-        if normalized_symbol not in self._portfolios:
+        current_portfolio = self._portfolios.get(normalized_symbol)
+
+        if current_portfolio not in self._portfolios:
             raise ValueError("Not found portfolio for provided symbol.")
 
         new_transaction = Transaction(TransactionType.SELL, normalized_symbol, quantity, price)
-        current_portfolio = self._portfolios[normalized_symbol]
 
-        # Update portfolio for coin - quantity and total_cost
-        current_portfolio.sell(quantity, price)
+        if quantity > current_portfolio.quantity:
+            raise ValueError("Cannot sell more than the current portfolio quantity.")
+
         # Add new sell transaction to transaction repository
         self._repository.save(new_transaction)
+        # Update portfolio for coin - quantity and total_cost
+        current_portfolio.sell(quantity, price)
 
         return new_transaction
 

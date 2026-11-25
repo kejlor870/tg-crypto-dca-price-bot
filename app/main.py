@@ -1,7 +1,9 @@
 import os
 from dotenv import load_dotenv
+from telegram.ext import Application, CommandHandler
 
 from app.config import load_config
+from app.handlers import start
 from database.database import Database
 from database.transaction_repository import TransactionRepository
 from services.transaction_service import TransactionService
@@ -23,26 +25,36 @@ from services.transaction_service import TransactionService
 def main() -> None:
     config = load_config()
 
-    config.database_path.parent.mkdir(
-        parents=True,
-        exist_ok=True,
+    # config.database_path.parent.mkdir(
+    #     parents=True,
+    #     exist_ok=True,
+    # )
+    #
+    # db = Database(str(config.database_path))
+    #
+    # try:
+    #     db.initialize()
+    #
+    #     repository = TransactionRepository(db.connection)
+    #     service = TransactionService(repository)
+    #
+    #     service.rebuild_portfolios()
+    #
+    #     print("Application initialized successfully.")
+    #     print(f"Loaded portfolios: {len(service.get_all_portfolios())}")
+    #
+    # finally:
+    #     db.close()
+
+    application = (
+        Application.builder().token(config.telegram_bot_token).build()
     )
 
-    db = Database(str(config.database_path))
+    application.bot_data["telegram_user_id"] = config.telegram_user_id
+    application.add_handler(CommandHandler("start", start))
 
-    try:
-        db.initialize()
-
-        repository = TransactionRepository(db.connection)
-        service = TransactionService(repository)
-
-        service.rebuild_portfolios()
-
-        print("Application initialized successfully.")
-        print(f"Loaded portfolios: {len(service.get_all_portfolios())}")
-
-    finally:
-        db.close()
+    print("Bot is starting...")
+    application.run_polling()
 
 
 if __name__ == "__main__":

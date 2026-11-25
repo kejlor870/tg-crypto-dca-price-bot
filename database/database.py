@@ -25,5 +25,5 @@ class Database:
         self._connection.commit()
 
     @property
-    def connection(self):
+    def connection(self) -> sqlite3.Connection:
         return self._connection

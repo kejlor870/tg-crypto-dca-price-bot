@@ -67,3 +67,35 @@ class TransactionService:
 
     def get_all_transactions(self) -> list[Transaction]:
         return self._repository.get_all()
+
+    def rebuild_portfolios(self) -> None:
+        self._portfolios.clear()
+
+        transactions = self._repository.get_all()
+
+        for transaction in reversed(transactions):
+            symbol = transaction.symbol
+
+            # BUY
+            if transaction.transaction_type == TransactionType.BUY:
+                # If coin symbol not have portfolio - create it
+                if symbol not in self._portfolios:
+                    self._portfolios[symbol] = Portfolio(
+                        symbol,
+                        Decimal("0"),
+                        Decimal("0")
+                    )
+
+                self._portfolios[symbol].buy(transaction.quantity, transaction.price)
+
+            # SELL
+            elif transaction.transaction_type == TransactionType.SELL:
+                if symbol not in self._portfolios:
+                    raise ValueError(f"Can not rebuild portfolio for {symbol}: \nSELL transaction without previous BUY.")
+
+                self._portfolios[symbol].sell(transaction.quantity, transaction.price)
+
+            else:
+                raise ValueError(f"Unsupported transaction type: {transaction.transaction_type}")
+
+            # service.rebuild_portfolios()

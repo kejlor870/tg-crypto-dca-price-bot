@@ -1,9 +1,11 @@
 import os
 from dotenv import load_dotenv
 
+from app.config import load_config
 from database.database import Database
 from database.transaction_repository import TransactionRepository
 from services.transaction_service import TransactionService
+
 
 # BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 # load_dotenv(os.path.join(BASE_DIR, ".env"))
@@ -18,13 +20,31 @@ from services.transaction_service import TransactionService
 # DATA_FILE = os.path.join(BASE_DIR, "zakupy.txt")
 # TELEGRAM_API_URL = f"https://api.telegram.org/bot{BOT_TOKEN}"
 
+def main() -> None:
+    config = load_config()
+
+    config.database_path.parent.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    db = Database(str(config.database_path))
+
+    try:
+        db.initialize()
+
+        repository = TransactionRepository(db.connection)
+        service = TransactionService(repository)
+
+        service.rebuild_portfolios()
+
+        print("Application initialized successfully.")
+        print(f"Loaded portfolios: {len(service.get_all_portfolios())}")
+
+    finally:
+        db.close()
+
+
 if __name__ == "__main__":
     print("Started!")
-
-    db = Database("data/crypto_tracker.db")
-    db.initialize()
-
-    repository = TransactionRepository(db.connection)
-    service = TransactionService(repository)
-
-    service.rebuild_portfolios()
+    main()

@@ -30,6 +30,68 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         await update.callback_query.message.reply_text(text, parse_mode="HTML", reply_markup=markup)
 
 
+# Returns portfolio message text
+def get_portfolio_messages(context: ContextTypes.DEFAULT_TYPE) -> str:
+    services = context.application.bot_data["transaction_service"]
+    portfolios = services.get_all_portfolios()
+
+    active_portfolios = [
+        portfolio
+        for portfolio in portfolios
+        if portfolio.quantity > 0
+    ]
+
+    if not active_portfolios:
+        return "📊 Your portfolio is empty."
+
+    lines = ["📊 Your portfolio", ""]
+
+    for portfolio in active_portfolios:
+        lines.append(f"🪙 {portfolio.symbol}")
+        lines.append(f"Quantity: {portfolio.quantity}")
+        lines.append(
+            f"Average buy price: {portfolio.average_buy_price} USDC"
+        )
+        lines.append(f"Total cost: {portfolio.total_cost} USDC")
+        lines.append("")
+
+    return "\n".join(lines).rstrip()
+
+
+# Returns history message text
+def get_history_message(context: ContextTypes.DEFAULT_TYPE) -> str:
+    service = context.application.bot_data["transaction_service"]
+    transactions = service.get_all_transactions()
+
+    if not transactions:
+        return "📜 Transaction history is empty."
+
+    lines = ["📜 Transaction history", ""]
+
+    for transaction in transactions[:10]:
+        emoji = (
+            "🟢"
+            if transaction.transaction_type.value == "BUY"
+            else "🔴"
+        )
+
+        lines.append(
+            f"{emoji} {transaction.transaction_type.value} "
+            f"| {transaction.symbol}"
+        )
+        lines.append(f"Quantity: {transaction.quantity} {transaction.symbol}")
+        lines.append(f"Price: {transaction.price} USDC")
+        lines.append(f"Date: {transaction.created_at.strftime('%Y-%m-%d %H:%M')}")
+        lines.append("")
+
+    message = "\n".join(lines).rstrip()
+
+    if len(transactions) > 10:
+        message += "\n\n<i>Showing the 10 most recent transactions.</i>"
+
+    return message
+
+
 # --------------------- MENU BUTTONS HANDLERS ---------------------
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
@@ -48,62 +110,16 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     # ---- PORTFOLIO BUTTON ----
     if query.data == "portfolio":
-        service = context.application.bot_data["transaction_service"]
-
-        portfolios = service.get_all_portfolios()
-
-        # Get active portfolios
-        active_portfolios = [
-            portfolio
-            for portfolio in portfolios
-            if portfolio.quantity > 0
-        ]
-
-        if not active_portfolios:
-            message = "📊 Your portfolio is empty."
-        else:
-            lines = ["📊 Your portfolio", ""]
-
-            for portfolio in active_portfolios:
-                lines.append(f"🪙 {portfolio.symbol}")
-                lines.append(f"Quantity: {portfolio.quantity}")
-                lines.append(
-                    f"Average buy price: "
-                    f"{portfolio.average_buy_price} USDC"
-                )
-                lines.append(f"Total cost: {portfolio.total_cost} USDC")
-                lines.append("")
-
-            message = "\n".join(lines).rstrip()
+        message = get_portfolio_messages(context)
 
     # ---- HISTORY BUTTON ----
     elif query.data == "history":
-        service = context.application.bot_data["transaction_service"]
-        transactions = service.get_all_transactions()
-
-        if not transactions:
-            message = "📜 Transaction history is empty."
-        else:
-            lines = ["📜 Transaction history", ""]
-
-            for transaction in transactions[:10]:
-                lines.append(
-                    f"{'🟢' if transaction.transaction_type.value == 'BUY' else '🔴'}"
-                    f" {transaction.transaction_type.value} | {transaction.symbol}"
-                )
-                lines.append(f"Quantity: {transaction.quantity}")
-                lines.append(f"Price: {transaction.price}")
-                lines.append(f"Date: {transaction.created_at.strftime('%Y-%m-%d %H:%M')}")
-                lines.append("")
-
-            message = "\n".join(lines).rstrip()
-
-            if len(transactions) > 10:
-                message += "\n\nShowing the 10 most recent transactions."
+        message = get_history_message(context)
 
     # ---- BUY & SELL BUTTON ----
     elif query.data in ("buy", "sell"):
-        cmd = query.data    # buy or sell
+        cmd = query.data  # buy or sell
+
         message = f"Use: /{query.data} SYMBOL QUANTITY PRICE"
 
         # Add new single button to fill command
@@ -223,6 +239,7 @@ async def _handle_transaction_command(update: Update, context: ContextTypes.DEFA
         reply_markup=main_menu_keyboard()
     )
 
+
 # Handle messages with @bot_name before /buy and /sell
 async def handle_inline_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if update.effective_user is None or update.message is None:
@@ -233,7 +250,7 @@ async def handle_inline_command(update: Update, context: ContextTypes.DEFAULT_TY
 
     # Checking if message starts with @bot_name
     if text.lower().startswith(bot_username.lower()):
-        clean_text = text[len(bot_username):].strip()   # leaves only "/buy ..."
+        clean_text = text[len(bot_username):].strip()  # leaves only "/buy ..."
         parts = clean_text.split()
 
         if not parts:
@@ -246,3 +263,33 @@ async def handle_inline_command(update: Update, context: ContextTypes.DEFAULT_TY
             await _handle_transaction_command(update, context, "BUY")
         elif command == "/sell":
             await _handle_transaction_command(update, context, "SELL")
+
+
+async def portfolio_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if update.effective_user is None or update.message is None:
+        return
+
+    allowed_user_id = context.application.bot_data["telegram_user_id"]
+
+    if update.effective_user.id != allowed_user_id:
+        await update.message.reply_text("Access denied.")
+        return
+
+    message = get_portfolio_messages(context)
+
+    await update.message.reply_text(message, reply_markup=main_menu_keyboard())
+
+
+async def history_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if update.effective_user is None or update.message is None:
+        return
+
+    allowed_user_id = context.application.bot_data["telegram_user_id"]
+
+    if update.effective_user.id != allowed_user_id:
+        await update.message.reply_text("Access denied.")
+        return
+
+    message = get_history_message(context)
+
+    await update.message.reply_text(message, reply_markup=main_menu_keyboard())

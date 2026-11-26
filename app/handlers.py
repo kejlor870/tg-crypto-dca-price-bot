@@ -4,6 +4,7 @@ from decimal import InvalidOperation, Decimal
 from html import escape
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.error import BadRequest
 from telegram.ext import ContextTypes
 
 from app.keyboards import main_menu_keyboard, fill_command_keyboard, history_menu_keyboard, history_back_keyboard, \
@@ -135,7 +136,14 @@ def get_symbol_history_message(context: ContextTypes.DEFAULT_TYPE, symbol: str) 
     if not transactions:
         return f"📜 No transactions found for {escape(symbol)}."
 
-    lines = [f"📜 <b>Full history: {escape(symbol)}</b>", ""]
+    portfolio = service.get_portfolio(symbol)
+    holdings = portfolio.quantity
+
+    lines = [
+        f"📜 <b>Full history: {escape(symbol)}</b>",
+        f"🏦 Remaining: {holdings} {escape(symbol)}",
+        ""
+    ]
 
     for tx in transactions:
         emoji = (
@@ -216,6 +224,16 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         message = get_symbol_history_message(context, symbol)
         reply_markup = history_back_keyboard()
 
+    # ---- SENDs NEW MESSAGE WITH HISTORY MENU ----
+    elif query.data == "history_back":
+        message = (
+            "📜 <b>Transaction history</b>\n\n"
+            "Choose what you want to see:"
+        )
+
+        # Last 10 transactions or specified coin all transactions
+        reply_markup = history_menu_keyboard()
+
     # ---- BUY & SELL BUTTON ----
     elif query.data in ("buy", "sell"):
         cmd = query.data  # buy or sell
@@ -250,7 +268,24 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         message = messages.get(query.data, "Unknown option.")
 
     if query.message:
-        await query.message.reply_text(message, parse_mode="HTML", reply_markup=reply_markup)
+        if(
+            query.data in ("history_last", "history_full", "history_back")
+            or query.data.startswith("history_symbol:")
+        ):
+            # Edit message only in History MENU
+            try:
+                await query.edit_message_text(
+                    text=message,
+                    parse_mode="HTML",
+                    reply_markup=reply_markup
+                )
+            except BadRequest as exc:
+                if "Message is not modified" in str(exc):
+                    raise
+
+        else:
+            # Other buttons sends NEW message
+            await query.message.reply_text(message, parse_mode="HTML", reply_markup=reply_markup)
 
 
 # --------------------- MENU BUTTONS HANDLERS ---------------------
@@ -419,6 +454,9 @@ async def history_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         await update.message.reply_text("Access denied.")
         return
 
-    message = get_history_message(context)
+    message = (
+        "📜 <b>Transaction history</b>\n\n"
+        "Choose what you want to see:"
+    )
 
-    await update.message.reply_text(message, parse_mode="HTML", reply_markup=main_menu_keyboard())
+    await update.message.reply_text(message, parse_mode="HTML", reply_markup=history_menu_keyboard())

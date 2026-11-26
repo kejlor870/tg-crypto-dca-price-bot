@@ -64,7 +64,7 @@ def history_back_keyboard() -> InlineKeyboardMarkup:
         [
             InlineKeyboardButton(
                 "🔙 Back to history",
-                callback_data="history",
+                callback_data="history_back",
             )
         ],
         [
@@ -98,7 +98,7 @@ def history_symbols_keyboard(context: ContextTypes.DEFAULT_TYPE) -> InlineKeyboa
     buttons.append([
         InlineKeyboardButton(
             "🔙 Back to history",
-            callback_data="history",
+            callback_data="history_back",
         )
     ])
 

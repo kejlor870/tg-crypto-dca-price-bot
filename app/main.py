@@ -34,7 +34,9 @@ def main() -> None:
 
         # Create telegram app
         application = (
-            Application.builder().token(config.telegram_bot_token).build()
+            Application.builder().token(
+                config.telegram_bot_token
+            ).post_init(post_init).build()
         )
 
         # Data for handlers
@@ -55,6 +57,17 @@ def main() -> None:
     finally:
         # Close db after bot stop
         db.close()
+
+
+# Add command list to bot
+async def post_init(application: Application) -> None:
+    commands = [
+        BotCommand("start", "Show main menu"),
+        BotCommand("buy", "Record a crypto purchase"),
+        BotCommand("sell", "Record a crypto sale"),
+    ]
+
+    await application.bot.set_my_commands(commands)
 
 
 if __name__ == "__main__":

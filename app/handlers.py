@@ -8,16 +8,26 @@ from app.keyboards import main_menu_keyboard
 
 # --------------------- START ---------------------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if update.message is None or update.effective_user is None:
+    if update.effective_user is None:
         return
 
     allowed_user_id = context.application.bot_data["telegram_user_id"]
 
     if update.effective_user.id != allowed_user_id:
-        await update.message.reply_text("Access denied.")
+        if update.message:
+            await update.message.reply_text("Access denied.")
+        elif update.callback_query:
+            await update.callback_query.answer("Access denied.", show_alert=True)
         return
 
-    await update.message.reply_text("<b>Hi!</b> Bot is working.", parse_mode="HTML", reply_markup=main_menu_keyboard())
+    text = "<b>Hi!</b> Bot is working."
+    markup = main_menu_keyboard()
+
+    if update.message:
+        await update.message.reply_text(text, parse_mode="HTML", reply_markup=markup)
+
+    elif update.callback_query and update.callback_query.message:
+        await update.callback_query.message.reply_text(text, parse_mode="HTML", reply_markup=markup)
 
 
 # --------------------- MENU BUTTONS HANDLERS ---------------------
@@ -106,6 +116,10 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             ]
         ])
 
+    elif query.data == "start":
+        await start(update, context)
+        return
+
     else:
         messages = {
             "who": "Bot created by me.",
@@ -136,12 +150,25 @@ async def _handle_transaction_command(update: Update, context: ContextTypes.DEFA
         await update.message.reply_text("Access denied.")
         return
 
+    reply_markup = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton(
+                text=f"🏠 Main menu",
+                callback_data="start"
+            ),
+            InlineKeyboardButton(
+                text=f"✍️ Fill /{operation.lower()}",
+                switch_inline_query_current_chat=f"/{operation.lower()} "
+            )
+        ]
+    ])
+
     if len(context.args) != 3:
         await update.message.reply_text(
             f"Usage: /{operation.lower()} SYMBOL QUANTITY PRICE\n"
             f"Example: /{operation.lower()} BTC 0.025 90000",
             parse_mode="HTML",
-            reply_markup=main_menu_keyboard()
+            reply_markup=reply_markup
         )
         return
 

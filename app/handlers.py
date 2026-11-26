@@ -6,7 +6,8 @@ from html import escape
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 
-from app.keyboards import main_menu_keyboard
+from app.keyboards import main_menu_keyboard, fill_command_keyboard, history_menu_keyboard, history_back_keyboard, \
+    history_symbols_keyboard
 
 logger = logging.getLogger(__name__)
 
@@ -122,7 +123,45 @@ def get_history_message(context: ContextTypes.DEFAULT_TYPE) -> str:
     return message
 
 
+# Sub menus for every coin
+def get_symbol_history_message(context: ContextTypes.DEFAULT_TYPE, symbol: str) -> str:
+    service = context.application.bot_data["transaction_service"]
+    transactions = [
+        tx
+        for tx in service.get_all_transactions()
+        if tx.symbol == symbol
+    ]
+
+    if not transactions:
+        return f"📜 No transactions found for {escape(symbol)}."
+
+    lines = [f"📜 <b>Full history: {escape(symbol)}</b>", ""]
+
+    for tx in transactions:
+        emoji = (
+            "🟢"
+            if tx.transaction_type.value == "BUY"
+            else "🔴"
+        )
+
+        # Transaction symbol supporting <, > and other special html chars
+        symbol_esc = escape(tx.symbol)
+
+        lines.append(
+            f"{emoji} <b>{symbol_esc}</b> "
+            f"· {tx.transaction_type.value}"
+        )
+        lines.append(f"| <i>{tx.created_at.strftime('%Y-%m-%d %H:%M')}</i>")
+        lines.append(f"| Quantity: <code>{tx.quantity} {symbol_esc}</code>")
+        lines.append(f"| Price per unit: <code>{tx.price} USDC</code>")
+        lines.append(f"| Transaction value: {(tx.quantity * tx.price):,.2f} USDC")
+        lines.append("")
+
+    return "\n".join(lines).rstrip()
+
+# -----------------------------------------------------------------
 # --------------------- MENU BUTTONS HANDLERS ---------------------
+# -----------------------------------------------------------------
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
 
@@ -138,13 +177,44 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     await query.answer()
     reply_markup = main_menu_keyboard()
 
+    # --------------------------
     # ---- PORTFOLIO BUTTON ----
     if query.data == "portfolio":
         message = get_portfolio_messages(context)
 
-    # ---- HISTORY BUTTON ----
+    # ---- HISTORY MENU BUTTON ----
     elif query.data == "history":
+        message = (
+            "📜 <b>Transaction history</b>\n\n"
+            "Choose what you want to see:"
+        )
+
+        # Last 10 transactions or specified coin all transactions
+        reply_markup = history_menu_keyboard()
+
+    # ---- HISTORY LAST 10 BUTTONS ----
+    elif query.data == "history_last":
         message = get_history_message(context)
+        reply_markup = history_back_keyboard()
+
+    # ---- HISTORY BTNs FOR ALL COINS ----
+    elif query.data == "history_full":
+        keyboard = history_symbols_keyboard(context)
+
+        if keyboard is None:
+            message = "📜 Transaction history is empty."
+            reply_markup = history_back_keyboard()
+
+        else:
+            message = "🪙 <b>Choose a cryptocurrency:</b>"
+            reply_markup = keyboard
+
+    # ---- FULL HISTORY FOR SPECIFIED COIN ----
+    elif query.data.startswith("history_symbol:"):
+        symbol = query.data.split(":", 1)[1]
+
+        message = get_symbol_history_message(context, symbol)
+        reply_markup = history_back_keyboard()
 
     # ---- BUY & SELL BUTTON ----
     elif query.data in ("buy", "sell"):
@@ -165,19 +235,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
         message = "\n".join(lines).rstrip()
 
-        # Add new single button to fill command
-        reply_markup = InlineKeyboardMarkup([
-            [
-                InlineKeyboardButton(
-                    text="🏠 Main menu",
-                    callback_data="start",
-                ),
-                InlineKeyboardButton(
-                    text=f"✍️ Fill /{cmd}",
-                    switch_inline_query_current_chat=f"/{cmd} "
-                )
-            ]
-        ])
+        # Add new buttons to fill command or exit to main menu
+        reply_markup = fill_command_keyboard(cmd)
 
     elif query.data == "start":
         await start(update, context)
@@ -219,18 +278,8 @@ async def _handle_transaction_command(update: Update, context: ContextTypes.DEFA
         await update.message.reply_text("⚠️ Unknown transaction type.")
         return
 
-    reply_markup = InlineKeyboardMarkup([
-        [
-            InlineKeyboardButton(
-                text="🏠 Main menu",
-                callback_data="start",
-            ),
-            InlineKeyboardButton(
-                text=f"✍️ Fill /{operation.lower()}",
-                switch_inline_query_current_chat=f"/{operation.lower()} "
-            ),
-        ]
-    ])
+    # Add new buttons to fill or exit to main menu
+    reply_markup = fill_command_keyboard(operation.lower())
 
     if len(context.args) != 3:
         await update.message.reply_text(

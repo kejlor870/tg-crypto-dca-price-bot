@@ -73,13 +73,13 @@ def get_portfolio_messages(context: ContextTypes.DEFAULT_TYPE) -> str:
         lines.append(f"<b>{symbol_esc}</b>")
         lines.append(f"├ Holdings: <code>{portfolio.quantity} {symbol_esc}</code>")
         lines.append(
-            f"├ Average buy price: <code>{portfolio.average_buy_price:.4f} USDC</code>"
+            f"├ Average buy price: <code>{portfolio.average_buy_price:,.4f} USDC</code>"
         )
-        lines.append(f"└ Total cost: <code>{portfolio.total_cost:.2f} USDC</code>")
+        lines.append(f"└ Total cost: <code>{portfolio.total_cost:,.2f} USDC</code>")
         lines.append("")
 
     lines.append("──────────────────")
-    lines.append(f"💰 <b>Total invested:</b> <code>{total_invested:.2f} USDC</code>")
+    lines.append(f"💰 <b>Total invested:</b> <code>{total_invested:,.2f} USDC</code>")
 
     return "\n".join(lines).rstrip()
 
@@ -111,7 +111,7 @@ def get_history_message(context: ContextTypes.DEFAULT_TYPE) -> str:
         lines.append(f"| <i>{transaction.created_at.strftime('%Y-%m-%d %H:%M')}</i>")
         lines.append(f"| Quantity: <code>{transaction.quantity} {symbol_esc}</code>")
         lines.append(f"| Price per unit: <code>{transaction.price} USDC</code>")
-        lines.append(f"| Transaction value: {(transaction.quantity * transaction.price):.2f} USDC")
+        lines.append(f"| Transaction value: {(transaction.quantity * transaction.price):,.2f} USDC")
         lines.append("")
 
     message = "\n".join(lines).rstrip()
@@ -253,8 +253,8 @@ async def _handle_transaction_command(update: Update, context: ContextTypes.DEFA
         return
 
     try:
-        quantity = Decimal(quantity_text)
-        price = Decimal(price_text)
+        quantity = Decimal(quantity_text.replace(",", "."))
+        price = Decimal(price_text.replace(",", "."))
     except (InvalidOperation, ValueError):
         await update.message.reply_text(
             "⚠️ Quantity and price must be valid numbers.",
@@ -313,8 +313,8 @@ async def _handle_transaction_command(update: Update, context: ContextTypes.DEFA
         "\n\n"
         f"📊 Actual portfolio for {symbol_esc}:\n"
         f"• Quantity: {portfolio.quantity} {symbol_esc}\n"
-        f"• Average buy price: {portfolio.average_buy_price:.4f} USDC\n"
-        f"• Total cost: {portfolio.total_cost:.2f} USDC\n",
+        f"• Average buy price: {portfolio.average_buy_price:,.4f} USDC\n"
+        f"• Total cost: {portfolio.total_cost:,.2f} USDC\n",
         parse_mode="HTML",
         reply_markup=main_menu_keyboard()
     )

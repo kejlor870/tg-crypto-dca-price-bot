@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from uuid import UUID
+
 from telegram import InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import ContextTypes
 
@@ -110,3 +112,59 @@ def history_symbols_keyboard(context: ContextTypes.DEFAULT_TYPE) -> InlineKeyboa
     ])
 
     return InlineKeyboardMarkup(buttons)
+
+
+def history_last_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton(
+                "🗑 Delete last transaction",
+                callback_data="history_delete_menu",
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                "🔙 Back to history",
+                callback_data="history_back",
+            )
+        ],
+    ])
+
+
+def history_transactions_keyboard(context: ContextTypes.DEFAULT_TYPE) -> InlineKeyboardMarkup:
+    service = context.application.bot_data["transaction_service"]
+    transactions = service.get_all_transactions()[:10]
+
+    buttons = []
+
+    for tx in transactions:
+        buttons.append([
+            InlineKeyboardButton(
+                f"🗑 {tx.symbol} · {tx.transaction_type.value}",
+                callback_data=f"delete_tx:{tx.id}",
+            )
+        ])
+
+    buttons.append([
+        InlineKeyboardButton(
+            "🔙 Back to history",
+            callback_data="history_back",
+        )
+    ])
+
+    return InlineKeyboardMarkup(buttons)
+
+
+def delete_confirmation_keyboard(transaction_id: UUID) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton(
+                "🗑 Confirm delete",
+                callback_data=f"confirm_delete:{transaction_id}",
+            ),
+            InlineKeyboardButton(
+                "❌ Cancel",
+                callback_data=f"cancel_delete:{transaction_id}",
+            ),
+        ]
+    ])

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from decimal import Decimal
+from uuid import UUID
 
 from database.transaction_repository import TransactionRepository
 from models.portfolio import Portfolio
@@ -73,6 +74,58 @@ class TransactionService:
 
     def get_all_transactions(self) -> list[Transaction]:
         return self._repository.get_all()
+
+    def delete_transaction(self, transaction_id: UUID) -> bool:
+        # Check whether the transaction exists.
+        transaction = self._repository.get_by_id(transaction_id)
+
+        if transaction is None:
+            return False
+
+        # Load all transactions except the one we want to delete.
+        remaining_transactions = [
+            tx for tx in self._repository.get_all()
+            if tx.id != transaction_id
+        ]
+
+        # Validate the remaining history using temporary portfolios.
+        test_portfolios: dict[str, Portfolio] = {}
+
+        for tx in reversed(remaining_transactions):
+            symbol = tx.symbol
+
+            if tx.transaction_type == TransactionType.BUY:
+                if symbol not in test_portfolios:
+                    test_portfolios[symbol] = Portfolio(
+                        symbol,
+                        Decimal("0"),
+                        Decimal("0")
+                    )
+
+                test_portfolios[symbol].buy(tx.quantity, tx.price)
+
+            elif tx.transaction_type == TransactionType.SELL:
+                if symbol not in test_portfolios:
+                    raise ValueError(
+                        f"Cannot delete this transaction: "
+                        f"remaining history contains a SELL without a previous BUY for {symbol}."
+                    )
+
+                test_portfolios[symbol].sell(tx.quantity, tx.price)
+
+            else:
+                raise ValueError(f"Unsupported transaction type: {tx.transaction_type}")
+
+        # The remaining history is valid, so delete the transaction.
+        deleted = self._repository.delete_by_id(transaction_id)
+
+        if not deleted:
+            return False
+
+        # Recalculate the real portfolios from the remaining history.
+        self.rebuild_portfolios()
+
+        return True
 
     def rebuild_portfolios(self) -> None:
         self._portfolios.clear()

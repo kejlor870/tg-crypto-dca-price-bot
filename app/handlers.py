@@ -1,14 +1,17 @@
+from __future__ import annotations
+
 import logging
 import sqlite3
 from decimal import InvalidOperation, Decimal
 from html import escape
+from uuid import UUID
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.error import BadRequest
 from telegram.ext import ContextTypes
 
 from app.keyboards import main_menu_keyboard, fill_command_keyboard, history_menu_keyboard, history_back_keyboard, \
-    history_symbols_keyboard
+    history_symbols_keyboard, history_transactions_keyboard, delete_confirmation_keyboard, history_last_keyboard
 
 logger = logging.getLogger(__name__)
 
@@ -167,6 +170,35 @@ def get_symbol_history_message(context: ContextTypes.DEFAULT_TYPE, symbol: str) 
 
     return "\n".join(lines).rstrip()
 
+
+# Show transaction to delete details
+def get_delete_confirmation_message(context: ContextTypes.DEFAULT_TYPE, transaction_id: UUID) -> str | None:
+    service = context.application.bot_data["transaction_service"]
+
+    transaction = next(
+        (
+            tx for tx in service.get_all_transactions()
+            if tx.id == transaction_id
+        ),
+        None,
+    )
+
+    if transaction is None:
+        return None
+
+    symbol = escape(transaction.symbol)
+    emoji = "🟢" if transaction.transaction_type.value == "BUY" else "🔴"
+
+    return (
+        "⚠️ <b>Delete this transaction?</b>\n\n"
+        f"{emoji} <b>{transaction.transaction_type.value} · {symbol}</b>\n"
+        f"Date: <i>{transaction.created_at.strftime('%Y-%m-%d %H:%M')}</i>\n"
+        f"Quantity: <code>{transaction.quantity} {symbol}</code>\n"
+        f"Price: <code>{transaction.price:,.4f} USDC</code>\n"
+        f"Value: <code>{transaction.value:,.2f} USDC</code>\n\n"
+        "This action cannot be undone."
+    )
+
 # -----------------------------------------------------------------
 # --------------------- MENU BUTTONS HANDLERS ---------------------
 # -----------------------------------------------------------------
@@ -203,7 +235,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     # ---- HISTORY LAST 10 BUTTONS ----
     elif query.data == "history_last":
         message = get_history_message(context)
-        reply_markup = history_back_keyboard()
+        reply_markup = history_last_keyboard()
 
     # ---- HISTORY BTNs FOR ALL COINS ----
     elif query.data == "history_full":
@@ -256,6 +288,89 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         # Add new buttons to fill command or exit to main menu
         reply_markup = fill_command_keyboard(cmd)
 
+    # ---- Last 10 txs DELETE MENU ----
+    elif query.data == "history_delete_menu":
+        service = context.application.bot_data["transaction_service"]
+        transactions = service.get_all_transactions()
+
+        if not transactions:
+            message = "📜 Transaction history is empty."
+            reply_markup = history_last_keyboard()
+        else:
+            message = (
+                "🗑 <b>Choose a transaction to delete</b>\n\n"
+                "Select the transaction you want to remove:"
+            )
+            reply_markup = history_transactions_keyboard(context)
+
+    # ---- ASK FOR DELETE CONFIRMATION ----
+    elif query.data.startswith("delete_tx:"):
+        transaction_id = UUID(query.data.split(":", 1)[1])
+
+        message = get_delete_confirmation_message(
+            context,
+            transaction_id,
+        )
+
+        if message is None:
+            message = "⚠️ Transaction not found."
+            reply_markup = history_transactions_keyboard(context)
+        else:
+            reply_markup = delete_confirmation_keyboard(transaction_id)
+
+    # ---- CONFIRM DELETE ----
+    elif query.data.startswith("confirm_delete:"):
+        transaction_id = UUID(query.data.split(":", 1)[1])
+        service = context.application.bot_data["transaction_service"]
+
+        try:
+            deleted = service.delete_transaction(transaction_id)
+
+            if deleted:
+                message = (
+                    "✅ <b>Transaction deleted successfully.</b>\n\n"
+                    + get_history_message(context)
+                )
+                reply_markup = history_transactions_keyboard(context)
+            else:
+                message = "⚠️ Transaction not found."
+                reply_markup = history_transactions_keyboard(context)
+
+        except ValueError as exc:
+            message = (
+                "❌ <b>Transaction cannot be deleted.</b>\n\n"
+                f"{escape(str(exc))}\n\n"
+                "The transaction history has not been changed."
+            )
+            reply_markup = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton(
+                        "🔙 Back to recent history",
+                        callback_data=f"cancel_delete:{transaction_id}",
+                    )
+                ]
+            ])
+
+        except sqlite3.Error:
+            logger.exception("Database error while deleting transaction")
+            message = (
+                "⚠️ <b>Database error.</b>\n\n"
+                "The transaction could not be deleted."
+            )
+            reply_markup = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton(
+                        "🔙 Back to recent history",
+                        callback_data=f"cancel_delete:{transaction_id}",
+                    )
+                ]
+            ])
+
+    # ---- CANCEL DELETE ----
+    elif query.data.startswith("cancel_delete:"):
+        message = get_history_message(context)
+        reply_markup = history_transactions_keyboard(context)
+
     elif query.data == "start":
         await start(update, context)
         return
@@ -269,10 +384,18 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     if query.message:
         if(
-            query.data in ("history_last", "history_full", "history_back")
+            query.data in (
+                "history_last",
+                "history_full",
+                "history_back",
+                "history_delete_menu",
+            )
             or query.data.startswith("history_symbol:")
+            or query.data.startswith("delete_tx:")
+            or query.data.startswith("confirm_delete:")
+            or query.data.startswith("cancel_delete:")
         ):
-            # Edit message only in History MENU
+            # Edit message only in History MENU & Delete tx MENU
             try:
                 await query.edit_message_text(
                     text=message,
@@ -280,7 +403,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                     reply_markup=reply_markup
                 )
             except BadRequest as exc:
-                if "Message is not modified" in str(exc):
+                if "Message is not modified" not in str(exc):
                     raise
 
         else:

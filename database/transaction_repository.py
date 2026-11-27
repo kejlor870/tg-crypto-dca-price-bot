@@ -86,3 +86,21 @@ class TransactionRepository:
         searched_tx = Transaction.from_db(tx_id, created_at, transaction_type, symbol, quantity, price)
 
         return searched_tx
+
+    # Method to delete transaction via its ID
+    def delete_by_id(self, transaction_id: UUID) -> bool:
+        try:
+            cursor = self._connection.execute(
+                """
+                DELETE FROM transactions
+                WHERE id = ?
+                """,
+                (str(transaction_id),)
+            )
+
+            self._connection.commit()
+            return cursor.rowcount > 0
+
+        except sqlite3.Error:
+            self._connection.rollback()
+            raise
